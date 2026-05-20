@@ -1,18 +1,6 @@
 {
-  "terminal.integrated.env.osx": {
-    "ANTHROPIC_BASE_URL": "http://localhost:4099",
-    "ANTHROPIC_AUTH_TOKEN": "proxy-passthrough",
-    "ANTHROPIC_API_KEY": ""
-  },
-  "terminal.integrated.env.linux": {
-    "ANTHROPIC_BASE_URL": "http://localhost:4099",
-    "ANTHROPIC_AUTH_TOKEN": "proxy-passthrough",
-    "ANTHROPIC_API_KEY": ""
-  },
-  "terminal.integrated.env.windows": {
-    "ANTHROPIC_BASE_URL": "http://localhost:4099",
-    "ANTHROPIC_AUTH_TOKEN": "proxy-passthrough",
-    "ANTHROPIC_API_KEY": ""
-  },
+  // task.allowAutomaticTasks: required to auto-run the proxy task on folder open.
+  // ANTHROPIC_* environment variables are scoped to the proxy task only (see tasks.json).
+  // They are NOT injected into every terminal — only the task process that starts the proxy.
   "task.allowAutomaticTasks": "on"
 }

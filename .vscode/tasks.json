@@ -4,7 +4,20 @@
     {
       "label": "Start OpenRouter Proxy",
       "type": "shell",
-      "command": "source .env.openrouter && node openrouter/proxy.mjs",
+      // Delegate to start-proxy.sh which uses set -a/set +a around `source`
+      // so OPENROUTER_API_KEY is correctly exported to the node child process.
+      // Direct `source .env.openrouter && node proxy.mjs` does NOT work —
+      // non-exported vars from `source` are invisible to spawned child processes.
+      "command": "./openrouter/start-proxy.sh",
+      "options": {
+        "env": {
+          // ANTHROPIC_* vars are scoped HERE — only the proxy task process sees them.
+          // No other integrated terminal in the workspace is affected.
+          "ANTHROPIC_BASE_URL": "http://localhost:4099",
+          "ANTHROPIC_AUTH_TOKEN": "proxy-passthrough",
+          "ANTHROPIC_API_KEY": ""
+        }
+      },
       "isBackground": true,
       "runOptions": {
         "runOn": "folderOpen"
