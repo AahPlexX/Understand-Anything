@@ -1,0 +1,6 @@
+{
+  // task.allowAutomaticTasks: required to auto-run the proxy task on folder open.
+  // ANTHROPIC_* environment variables are scoped to the proxy task only (see tasks.json).
+  // They are NOT injected into every terminal — only the task process that starts the proxy.
+  "task.allowAutomaticTasks": "on"
+}
