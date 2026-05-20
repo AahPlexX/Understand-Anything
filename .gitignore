@@ -2,11 +2,13 @@
 .env.openrouter
 .env*.local
 
-# Claude Code local overrides — machine-specific
+# Claude Code local overrides — machine-specific, never commit
 .claude/settings.local.json
 
-# VS Code local settings — contain env overrides specific to this machine
-.vscode/settings.json
+# VS Code PERSONAL overrides — machine-specific, never commit
+# .vscode/settings.json is intentionally committed (shared proxy integration config)
+# Only create .vscode/settings.local.json for personal machine overrides
+.vscode/settings.local.json
 
 # Proxy runtime logs
 /tmp/ua-proxy.log
