@@ -32,8 +32,10 @@ if [[ ! -f .env.openrouter ]]; then
   echo "Get a free key at: https://openrouter.ai/keys"
   exit 1
 fi
-source .env.openrouter
-nohup node openrouter/proxy.mjs > /tmp/ua-proxy.log 2>&1 &
+# Delegate to start-proxy.sh which uses set -a/set +a around `source`
+# so ALL variables are exported to the nohup child process.
+# Direct `source` without set -a does NOT export vars to child processes.
+nohup ./openrouter/start-proxy.sh > /tmp/ua-proxy.log 2>&1 &
 echo "Proxy PID: $!"
 sleep 2
 curl -s http://localhost:4099/health | grep -q '"status":"ok"' && echo "Proxy started successfully" || echo "WARNING: Proxy may still be starting — check /tmp/ua-proxy.log"
