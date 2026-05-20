@@ -1,4 +1,5 @@
 # Secrets — never commit
+.env
 .env.openrouter
 .env*.local
 
