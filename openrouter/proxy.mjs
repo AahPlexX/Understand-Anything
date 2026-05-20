@@ -16,6 +16,8 @@ import { rankModelsForAgent } from './model-scorer.mjs';
 const PROXY_PORT      = parseInt(process.env.PROXY_PORT ?? '4099', 10);
 const OPENROUTER_KEY  = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_HOST = 'openrouter.ai';
+const BODY_SIZE_LIMIT = 50 * 1024 * 1024; // 50 MB — rejects oversized payloads early
+const UPSTREAM_TIMEOUT_MS = 120_000;       // 120s — prevents hung sockets on stalled upstream
 
 if (!OPENROUTER_KEY) {
   console.error('[proxy] FATAL: OPENROUTER_API_KEY is not set.');
@@ -25,6 +27,8 @@ if (!OPENROUTER_KEY) {
 
 // ─── Agent detection ─────────────────────────────────────────────────────────
 // Scans the system prompt for understand-anything agent identity markers.
+// fix: also inspect parsed.system (top-level Anthropic field) so requests
+//      that carry the system prompt outside messages[] are classified correctly.
 const AGENT_MARKERS = {
   'project-scanner':       ['project-scanner', 'discover all files', 'project structure scan'],
   'file-analyzer':         ['file-analyzer', 'extract functions', 'analyze imports'],
@@ -34,14 +38,17 @@ const AGENT_MARKERS = {
   'domain-analyzer':       ['domain-analyzer', 'business domain', 'business flows'],
 };
 
-function detectAgent(messages) {
-  if (!Array.isArray(messages)) return 'default';
-  const systemText = messages
-    .filter(m => m.role === 'system' || m.role === 'user')
-    .slice(0, 3)
-    .map(m => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content)))
-    .join('\n')
-    .toLowerCase();
+function detectAgent(messages, systemField) {
+  // Build detection corpus from: top-level system field + first 3 messages
+  const parts = [];
+  if (typeof systemField === 'string') parts.push(systemField);
+  if (Array.isArray(messages)) {
+    messages
+      .filter(m => m.role === 'system' || m.role === 'user')
+      .slice(0, 3)
+      .forEach(m => parts.push(typeof m.content === 'string' ? m.content : JSON.stringify(m.content)));
+  }
+  const systemText = parts.join('\n').toLowerCase();
 
   for (const [agent, markers] of Object.entries(AGENT_MARKERS)) {
     if (markers.some(marker => systemText.includes(marker))) {
@@ -60,7 +67,8 @@ async function transformRequest(body) {
     return body; // non-JSON passthrough (safe)
   }
 
-  const agentName = detectAgent(parsed.messages ?? []);
+  // fix: pass parsed.system alongside messages[] to detectAgent
+  const agentName = detectAgent(parsed.messages ?? [], parsed.system);
   console.log(`[proxy] Agent detected: ${agentName}`);
 
   let rankedModels;
@@ -113,9 +121,28 @@ const server = http.createServer((clientReq, clientRes) => {
   }
 
   const chunks = [];
-  clientReq.on('data', chunk => chunks.push(chunk));
+  let bodySize = 0;
+
+  clientReq.on('data', chunk => {
+    bodySize += chunk.length;
+    // fix: enforce body size limit — reject oversized payloads with 413
+    if (bodySize > BODY_SIZE_LIMIT) {
+      if (!clientRes.headersSent) {
+        clientRes.writeHead(413, { 'Content-Type': 'application/json' });
+        clientRes.end(JSON.stringify({
+          error: { message: 'Request body too large', type: 'payload_too_large' }
+        }));
+      }
+      clientReq.destroy();
+      return;
+    }
+    chunks.push(chunk);
+  });
 
   clientReq.on('end', async () => {
+    // If we already sent 413, do nothing further
+    if (clientRes.headersSent) return;
+
     const rawBody   = Buffer.concat(chunks).toString('utf-8');
     const isChatReq = clientReq.url?.includes('/messages') ||
                       clientReq.url?.includes('/chat/completions');
@@ -155,10 +182,23 @@ const server = http.createServer((clientReq, clientRes) => {
       upstreamRes.pipe(clientRes);
     });
 
+    // fix: abort hung upstream connections after UPSTREAM_TIMEOUT_MS
+    upstreamReq.setTimeout(UPSTREAM_TIMEOUT_MS, () => {
+      console.error('[proxy] Upstream request timed out after', UPSTREAM_TIMEOUT_MS, 'ms');
+      upstreamReq.destroy();
+      if (!clientRes.headersSent) {
+        clientRes.writeHead(504, { 'Content-Type': 'application/json' });
+        clientRes.end(JSON.stringify({
+          error: { message: 'Upstream request timed out', type: 'gateway_timeout' }
+        }));
+      }
+    });
+
     upstreamReq.on('error', err => {
       console.error('[proxy] Upstream request error:', err.message);
       if (!clientRes.headersSent) {
-        clientRes.writeHead(502);
+        // fix: include Content-Type header on error responses for client compatibility
+        clientRes.writeHead(502, { 'Content-Type': 'application/json' });
         clientRes.end(JSON.stringify({
           error: { message: err.message, type: 'proxy_error' }
         }));

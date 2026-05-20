@@ -6,12 +6,23 @@
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MODELS_URL   = 'https://openrouter.ai/api/v1/models';
 
-let _cache     = null;
-let _fetchedAt = 0;
+let _cache        = null;
+let _fetchedAt    = 0;
+let _inflightReq  = null; // fix: deduplicate concurrent refreshes (cache stampede)
 
 export async function getLiveModels(apiKey) {
   const now = Date.now();
   if (_cache && (now - _fetchedAt) < CACHE_TTL_MS) return _cache;
+
+  // If a refresh is already in-flight, wait for it instead of firing another
+  if (_inflightReq) return _inflightReq;
+
+  _inflightReq = _fetchModels(apiKey).finally(() => { _inflightReq = null; });
+  return _inflightReq;
+}
+
+async function _fetchModels(apiKey) {
+  const now = Date.now();
 
   const res = await fetch(MODELS_URL, {
     headers: {
@@ -30,18 +41,30 @@ export async function getLiveModels(apiKey) {
     throw new Error(`OpenRouter /models fetch failed: ${res.status} ${res.statusText}`);
   }
 
-  const json = await res.json();
+  // fix: wrap parse + filter in try/catch so schema/JSON errors fall back to stale cache
+  let freeModels;
+  try {
+    const json = await res.json();
+    const data = Array.isArray(json.data) ? json.data : [];
+    const nowTs = Date.now();
 
-  // Filter free text models only.
-  // Official schema: pricing.prompt and pricing.completion are string "0" for free models.
-  const freeModels = json.data.filter(m => {
-    const p = m.pricing;
-    if (!p) return false;
-    const isFreeTokens = p.prompt === '0' && p.completion === '0';
-    const isTextOutput = m.architecture?.output_modalities?.includes('text');
-    const notExpired   = !m.expiration_date;
-    return isFreeTokens && isTextOutput && notExpired;
-  });
+    freeModels = data.filter(m => {
+      const p = m.pricing;
+      if (!p) return false;
+      const isFreeTokens = p.prompt === '0' && p.completion === '0';
+      const isTextOutput = m.architecture?.output_modalities?.includes('text');
+      // fix: compare expiration_date against current time, not just field presence
+      const notExpired   = !m.expiration_date || new Date(m.expiration_date).getTime() > nowTs;
+      return isFreeTokens && isTextOutput && notExpired;
+    });
+  } catch (parseErr) {
+    console.warn('[cache] Failed to parse /models response:', parseErr.message);
+    if (_cache) {
+      console.warn('[cache] Returning stale cache due to parse error');
+      return _cache;
+    }
+    throw parseErr;
+  }
 
   _cache     = freeModels;
   _fetchedAt = now;

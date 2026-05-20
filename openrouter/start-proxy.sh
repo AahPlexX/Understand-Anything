@@ -33,8 +33,14 @@ set -a
 source "$ENV_FILE"
 set +a
 
+# fix: never print any portion of the API key to stdout.
+# Key presence is confirmed without leaking credential material.
+# To see the key prefix for debugging, set DEBUG_OPENROUTER_PROXY=1.
 echo "Starting understand-anything OpenRouter proxy..."
-echo "API key: ${OPENROUTER_API_KEY:0:12}..."
+echo "API key loaded from .env.openrouter"
+if [[ "${DEBUG_OPENROUTER_PROXY:-0}" == "1" ]]; then
+  echo "DEBUG_OPENROUTER_PROXY=1: OPENROUTER_API_KEY prefix: ${OPENROUTER_API_KEY:0:12}..."
+fi
 echo ""
 
 exec node "$SCRIPT_DIR/proxy.mjs"
