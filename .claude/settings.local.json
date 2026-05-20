@@ -1,0 +1,7 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:4099",
+    "ANTHROPIC_AUTH_TOKEN": "proxy-passthrough",
+    "ANTHROPIC_API_KEY": ""
+  }
+}

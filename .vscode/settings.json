@@ -1,0 +1,18 @@
+{
+  "terminal.integrated.env.osx": {
+    "ANTHROPIC_BASE_URL": "http://localhost:4099",
+    "ANTHROPIC_AUTH_TOKEN": "proxy-passthrough",
+    "ANTHROPIC_API_KEY": ""
+  },
+  "terminal.integrated.env.linux": {
+    "ANTHROPIC_BASE_URL": "http://localhost:4099",
+    "ANTHROPIC_AUTH_TOKEN": "proxy-passthrough",
+    "ANTHROPIC_API_KEY": ""
+  },
+  "terminal.integrated.env.windows": {
+    "ANTHROPIC_BASE_URL": "http://localhost:4099",
+    "ANTHROPIC_AUTH_TOKEN": "proxy-passthrough",
+    "ANTHROPIC_API_KEY": ""
+  },
+  "task.allowAutomaticTasks": "on"
+}

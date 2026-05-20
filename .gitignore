@@ -1,16 +1,20 @@
-node_modules
-dist
-.understand-anything
-*.tsbuildinfo
-.DS_Store
-.env
-.env.*
-coverage/
+# Secrets — never commit
+.env.openrouter
+.env*.local
+
+# Claude Code local overrides — machine-specific
+.claude/settings.local.json
+
+# VS Code local settings — contain env overrides specific to this machine
+.vscode/settings.json
+
+# Proxy runtime logs
+/tmp/ua-proxy.log
+
+# Node
+node_modules/
 *.log
-__pycache__/
-.claude/
-.worktrees/
-homepage/public/demo/
-.private/
-__pycache__/
-*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
